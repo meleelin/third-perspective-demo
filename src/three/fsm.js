@@ -1,6 +1,27 @@
 // 有限狀態機
 class FiniteStateMachine {
-  constructor() {}
+  constructor() {
+    this._states = {};
+    this._currentState = null;
+  }
+  _addState(name, type) {
+    this._states[name] = type;
+  }
+  setState(name) {
+    const prevState = this._currentState;
+    if (prevState) {
+      if (prevState.Name === name) return;
+      prevState.exit();
+    }
+    const state = new this._states[name](this);
+    this._currentState = state;
+    state.enter(prevState);
+  }
+  update(timeElapsed, input) {
+    if (this._currentState) {
+      this._currentState.update(timeElapsed, input);
+    }
+  }
 }
 
 class CharacterFSM extends FiniteStateMachine {
@@ -10,10 +31,10 @@ class CharacterFSM extends FiniteStateMachine {
     this._init();
   }
   _init() {
-    this.addState("idle", IdleState);
-    this.addState("jump", JumpState);
-    this.addState("walk", WalkState);
-    // this.addState("idle", IdleState);
+    this._addState("idle", IdleState);
+    this._addState("walk", WalkState);
+    this._addState("run", RunState);
+    this._addState("back", BackState);
   }
 }
 
@@ -53,7 +74,7 @@ class IdleState extends State {
   }
   exit() {}
   update(_, input) {
-    if (input._move.forward || input._move.backward) {
+    if (input._keys.forward || input._keys.backward) {
       this._parent.setState("walk");
     }
     // else if (input._move.space) {
@@ -95,14 +116,58 @@ class WalkState extends State {
   exit() {}
 
   update(timeElapsed, input) {
-    if (input._keys.forward || input._keys.backward) {
+    if (input._keys.forward||input._keys.backward) {
       if (input._keys.shift) {
-        this._parent.SetState("run");
+        this._parent.setState("run");
       }
       return;
     }
 
-    this._parent.SetState("idle");
+    this._parent.setState("idle");
+  }
+}
+
+// Walk
+class BackState extends State {
+  constructor(parent) {
+    super(parent);
+  }
+  get Name() {
+    return "back";
+  }
+  enter(prevState) {
+    const backAction = this._parent._proxy._animations["back"].action;
+    if (prevState) {
+      const prevAction = this._parent._proxy._animations[prevState.Name].action;
+
+      backAction.enabled = true;
+
+      if (prevState.Name == "run") {
+        const ratio = backAction.getClip().duration / prevAction.getClip().duration;
+        backAction.time = prevAction.time * ratio;
+      } else {
+        backAction.time = 0.0;
+        backAction.setEffectiveTimeScale(1.0);
+        backAction.setEffectiveWeight(1.0);
+      }
+
+      backAction.crossFadeFrom(prevAction, 0.5, true);
+      backAction.play();
+    } else {
+      backAction.play();
+    }
+  }
+  exit() {}
+
+  update(timeElapsed, input) {
+    if (input._keys.backward) {
+      // if (input._keys.shift) {
+      //   this._parent.setState("run");
+      // }
+      return;
+    }
+
+    this._parent.setState("idle");
   }
 }
 
@@ -122,7 +187,7 @@ class RunState extends State {
       runAction.enabled = true;
 
       if (prevState.Name == "walk") {
-        const ratio = curAction.getClip().duration / prevAction.getClip().duration;
+        const ratio = runAction.getClip().duration / prevAction.getClip().duration;
         runAction.time = prevAction.time * ratio;
       } else {
         runAction.time = 0.0;
@@ -140,11 +205,13 @@ class RunState extends State {
   update(timeElapsed, input) {
     if (input._keys.forward || input._keys.backward) {
       if (!input._keys.shift) {
-        this._parent.SetState("walk");
+        this._parent.setState("walk");
       }
       return;
     }
 
-    this._parent.SetState("idle");
+    this._parent.setState("idle");
   }
 }
+
+export { CharacterFSM };
