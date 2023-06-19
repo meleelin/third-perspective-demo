@@ -1,5 +1,5 @@
 <template>
-  <span id="fps">{{ fps }} FPS</span>
+  <span id="fps">{{ fps }} FPSS</span>
 </template>
 
 <script>
